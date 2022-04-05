@@ -31,11 +31,13 @@ export default class BoardScroller {
   draggableWidth: number;
   originalHandleLeft: number;
   originalHandleTop: number;
+  isDragging: boolean;
 
   constructor() {
     this.boardSelector = '[class*="workflowBoard-"]';
     this.boardScrollerId = 'boardScroller';
     this.boardScrollerWidth = 140;
+    this.isDragging = false;
   }
 
   async load() {
@@ -59,18 +61,19 @@ export default class BoardScroller {
     this.createBoardScrollerColumns();
     this.setHandlePosition();
     this.createEvents(this.boardScrollerHandle);
-    this.showBoardScroller();
   }
 
   setScrollerDimensions() {
     const scrollerRatio = this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth;
 
-    this.boardScrollerHeight = Math.round(this.boardScrollerWidth * scrollerRatio);
+    const minHeight = Math.ceil(this.boardScrollerWidth * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetWidth)) + 8;
+
+    this.boardScrollerHeight = Math.max(Math.ceil(this.boardScrollerWidth * scrollerRatio), minHeight);
 
     this.boardScroller.style.width = this.boardScrollerWidth + 'px';
     this.boardScroller.style.height = this.boardScrollerHeight + 'px';
     this.boardScrollerHandle.style.width = (this.boardScrollerWidth - 10) * ((this.workflowBoardWrapper.offsetWidth - 30) / this.workflowBoard.offsetWidth) + 'px';
-    this.boardScrollerHandle.style.height = Math.round((this.boardScrollerWidth - 10) * scrollerRatio) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetHeight) + 'px';
+    this.boardScrollerHandle.style.height = Math.ceil((this.boardScrollerWidth - 10) * scrollerRatio) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetHeight) + 'px';
 
     this.originalHandleLeft = this.boardScrollerHandle.offsetLeft;
     this.originalHandleTop = this.boardScrollerHandle.offsetTop;
@@ -87,47 +90,49 @@ export default class BoardScroller {
       containment: true,
     });
 
-    draggable.on('dragMove', function (event, pointer, vector) {
+    draggable.on('dragMove', function () {
       _this.workflowBoardWrapper.scrollTop = (this.position.y - _this.originalHandleTop) * (_this.scrollableHeight / _this.draggableHeight);
       _this.workflowBoardWrapper.scrollLeft = (this.position.x - _this.originalHandleLeft) * (_this.scrollableWidth / _this.draggableWidth);
     });
 
-    draggable.on('pointerDown', function () {
+    draggable.on('pointerDown', () => {
       element.style.cursor = 'grabbing';
     });
 
-    draggable.on('pointerUp', function () {
+    draggable.on('pointerUp', () => {
       element.style.cursor = 'grab';
     });
 
-    let dragMove = false;
-
     draggable.on('dragStart', () => {
-      dragMove = true;
+      _this.isDragging = true;
     });
 
     draggable.on('dragEnd', () => {
-      dragMove = false;
+      _this.isDragging = false;
     });
 
-    window.addEventListener('resize', function () {
+    window.addEventListener('resize', () => {
       _this.setScrollerDimensions();
     });
 
-    this.workflowBoardWrapper.addEventListener('scroll', function (e) {
-      if (!dragMove) {
+    this.workflowBoardWrapper.addEventListener('scroll', () => {
+      if (!_this.isDragging) {
         _this.setHandlePosition();
       }
+    });
+
+    this.workflowBoardWrapper.addEventListener('mouseenter', () => {
+      document.getElementById(this.boardScrollerId).style.opacity = '1';
+    });
+
+    this.workflowBoardWrapper.addEventListener('mouseleave', () => {
+      document.getElementById(this.boardScrollerId).style.opacity = '0';
     });
   }
 
   setHandlePosition() {
     this.boardScrollerHandle.style.top = (this.boardScroller.offsetHeight - this.boardScrollerHandle.offsetHeight - 14) * (this.workflowBoardWrapper.scrollTop / this.scrollableHeight) + 'px';
     this.boardScrollerHandle.style.left = (this.boardScroller.offsetWidth - this.boardScrollerHandle.offsetWidth - 14) * (this.workflowBoardWrapper.scrollLeft / this.scrollableWidth) + 'px';
-  }
-
-  showBoardScroller() {
-    document.getElementById(this.boardScrollerId).style.opacity = '1';
   }
 
   createBoardScroller() {
@@ -141,11 +146,12 @@ export default class BoardScroller {
         height: '100px',
         zIndex: '1000',
         boxSizing: 'border-box',
-        backgroundColor: 'var(--aha-gray-200)',
-        border: '1px solid var(--aha-gray-400)',
+        backgroundColor: 'var(--theme-container-page-background)',
+        border: '1px solid var(--theme-primary-border)',
+        boxShadow: '0px 2px 5px rgb(0 0 0 / 20%)',
         borderRadius: '4px',
         opacity: '0',
-        transition: 'opacity 100ms ease',
+        transition: 'opacity 200ms ease',
       },
     });
   }
@@ -162,7 +168,7 @@ export default class BoardScroller {
         zIndex: '1001',
         width: 'calc(100% - 10px)',
         height: 'calc(100% - 10px)',
-        backgroundColor: 'var(--aha-gray-200)',
+        backgroundColor: 'var(--theme-container-page-background)',
         boxSizing: 'border-box',
         borderRadius: '4px',
       },
@@ -174,8 +180,8 @@ export default class BoardScroller {
       id: this.boardScrollerId + 'Handle',
       styles: {
         position: 'absolute',
-        width: '30px',
-        height: '30px',
+        width: '0',
+        height: '0',
         zIndex: '1003',
         boxSizing: 'border-box',
         border: '2px solid var(--aha-blue-400)',
@@ -186,34 +192,51 @@ export default class BoardScroller {
   }
 
   createBoardScrollerColumns() {
-    const columns = document.querySelectorAll('[class*="workflowGroupItems"] [class*="workflowColumn-"]');
+    const columnHeaders = document.querySelectorAll('[class*="workflowColumnHeaders"] [class*="columnHeader-"]') as NodeListOf<HTMLElement>;
+    const columns = document.querySelectorAll('[class*="workflowGroupItems"] [class*="workflowColumn-"]') as NodeListOf<HTMLElement>;
 
-    const columnMargin = Math.ceil(14 / this.workflowBoard.offsetWidth);
+    let left = 2;
 
-    let left = columnMargin;
+    for (let i = 0; i < columns.length; i++) {
+      const column = columns[i];
+      const columnHeader = columnHeaders[i];
 
-    columns.forEach((column: HTMLElement) => {
       const cardContainer = column.querySelector('[class*="workflowCardContainer"]') as HTMLElement;
-      const widthRatio = (column.offsetWidth - Math.ceil(column.offsetWidth * 0.1)) / this.workflowBoard.offsetWidth;
+      const widthRatio = (column.offsetWidth - Math.ceil(column.offsetWidth * 0.16)) / this.workflowBoard.offsetWidth;
       const heightRatio = (cardContainer.offsetHeight - Math.ceil(cardContainer.offsetHeight * 0.05)) / this.workflowBoard.offsetHeight;
+      const headerHeightRatio = (columnHeader.offsetHeight - Math.ceil(columnHeader.offsetHeight * 0.05)) / this.workflowBoard.offsetHeight;
 
-      const columnElement = createElement('div', {
+      const columnHeaderElement = createElement('div', {
         styles: {
           position: 'absolute',
           top: '2px',
           left: left + 'px',
-          width: this.boardScrollerWidth * widthRatio + 'px',
-          height: this.boardScrollerHeight * heightRatio + 'px',
+          width: Math.ceil(this.boardScrollerWidth * widthRatio) + 'px',
+          height: Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 'px',
           zIndex: '1002',
           boxSizing: 'border-box',
-          backgroundColor: 'var(--aha-gray-400)',
+          backgroundColor: columnHeader.style.backgroundColor,
           borderRadius: '2px',
         },
       });
+      this.boardScrollerInner.appendChild(columnHeaderElement);
 
-      left += this.boardScrollerWidth * widthRatio + columnMargin;
+      const columnElement = createElement('div', {
+        styles: {
+          position: 'absolute',
+          top: Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 4 + 'px',
+          left: left + 'px',
+          width: Math.ceil(this.boardScrollerWidth * widthRatio) + 'px',
+          height: Math.ceil(this.boardScrollerHeight * heightRatio) + 'px',
+          zIndex: '1002',
+          boxSizing: 'border-box',
+          backgroundColor: 'var(--WorkflowBoard--status-background-color)',
+          borderRadius: '2px',
+        },
+      });
       this.boardScrollerInner.appendChild(columnElement);
-    });
+      left += Math.ceil(this.boardScrollerWidth * widthRatio) + 2;
+    }
   }
 
   workflowBoardLoaded(): Promise<boolean> {
