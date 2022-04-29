@@ -6,11 +6,10 @@ const applyCSS = (element: HTMLElement, styles: Record<string, unknown>) => {
   }
 };
 
-const sleep = (duration: number) => new Promise(res => setTimeout(() => res(true), duration));
-
-const createElement = (tagName: string, { id, styles }: { id?: string; styles?: Record<string, unknown> }): HTMLElement => {
+const createElement = (tagName: string, { id, className, styles }: { id?: string; className?: string; styles?: Record<string, unknown> }): HTMLElement => {
   const element = document.createElement(tagName);
   if (id) element.id = id;
+  if (className) element.className = className;
   if (styles) applyCSS(element, styles);
   return element;
 };
@@ -40,20 +39,20 @@ export default class BoardScroller {
     this.isDragging = false;
   }
 
-  async load() {
+  async load(): Promise<void> {
     await this.workflowBoardLoaded();
-    await sleep(500);
 
+    // Tear down existing scroller
     const existingScroller = document.getElementById(this.boardScrollerId);
     if (existingScroller) {
       existingScroller.remove();
     }
 
     this.workflowBoardWrapper = document.querySelector('[class*="workflowBoardWrapper"]') as HTMLElement;
-
-    if (!this.workflowBoardWrapper) return;
-
     this.workflowBoard = document.querySelector('[class*="workflowBoard-"]') as HTMLElement;
+
+    if (!this.workflowBoardWrapper || !this.workflowBoard) return;
+
     this.boardScroller = this.createBoardScroller();
     this.boardScrollerInner = this.createBoardScrollerInner();
     this.boardScrollerHandle = this.createBoardScrollerHandle();
@@ -63,37 +62,44 @@ export default class BoardScroller {
     this.setScrollerDimensions();
     this.createBoardScrollerColumns();
     this.setHandlePosition();
-    this.createEvents(this.boardScrollerHandle);
+    this.createEvents();
   }
 
-  setScrollerDimensions() {
+  setScrollerDimensions(): void {
+    // TODO: Figure out dimensions glitches with boards of different sizes
+
     const scrollerRatio = this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth;
 
     if (this.workflowBoardWrapper.offsetHeight > this.workflowBoard.offsetHeight) {
-      this.boardScrollerHeight = Math.ceil(this.boardScrollerWidth * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetWidth));
+      this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetWidth));
     } else {
-      this.boardScrollerHeight = Math.ceil(this.boardScrollerWidth * (this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth));
+      this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth));
     }
 
     this.boardScroller.style.width = this.boardScrollerWidth + 10 + 'px';
     this.boardScroller.style.height = this.boardScrollerHeight + 10 + 'px';
-    this.boardScrollerInner.style.width = this.boardScrollerWidth + 4 + 'px';
-    this.boardScrollerInner.style.height = this.boardScrollerHeight + 4 + 'px';
     this.boardScrollerHandle.style.width = this.boardScrollerWidth * (this.workflowBoardWrapper.offsetWidth / this.workflowBoard.offsetWidth) + 'px';
-    this.boardScrollerHandle.style.height = Math.ceil(this.boardScrollerWidth * scrollerRatio) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetHeight) + 2 + 'px';
+    this.boardScrollerHandle.style.height =
+      Math.ceil((this.boardScrollerWidth - 10) * scrollerRatio) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetHeight) + 2 + 'px';
+    if (this.boardScrollerHandle.offsetHeight > this.boardScrollerInner.offsetHeight) {
+      this.boardScrollerHandle.style.height = this.boardScrollerInner.offsetHeight + 'px';
+    }
+    if (this.boardScrollerHandle.offsetHeight > this.boardScrollerInner.offsetWidth) {
+      this.boardScrollerHandle.style.width = this.boardScrollerInner.offsetWidth + 'px';
+    }
 
     this.originalHandleLeft = this.boardScrollerHandle.offsetLeft;
     this.originalHandleTop = this.boardScrollerHandle.offsetTop;
-    this.scrollableHeight = this.workflowBoard.offsetHeight - this.workflowBoardWrapper.offsetHeight;
-    this.scrollableWidth = this.workflowBoard.offsetWidth - (this.workflowBoardWrapper.offsetWidth - 32);
+    this.scrollableHeight = this.workflowBoard.offsetHeight - this.workflowBoardWrapper.offsetHeight + 30;
+    this.scrollableWidth = this.workflowBoard.offsetWidth - this.workflowBoardWrapper.offsetWidth + 50;
     this.draggableHeight = this.boardScrollerInner.offsetHeight - this.boardScrollerHandle.offsetHeight;
     this.draggableWidth = this.boardScrollerInner.offsetWidth - this.boardScrollerHandle.offsetWidth;
   }
 
-  createEvents(element: HTMLElement) {
+  createEvents(): void {
     const _this = this;
 
-    const draggable = new Draggabilly(element, {
+    const draggable = new Draggabilly(this.boardScrollerHandle, {
       containment: true,
     });
 
@@ -103,11 +109,11 @@ export default class BoardScroller {
     });
 
     draggable.on('pointerDown', () => {
-      element.style.cursor = 'grabbing';
+      this.boardScrollerHandle.style.cursor = 'grabbing';
     });
 
     draggable.on('pointerUp', () => {
-      element.style.cursor = 'grab';
+      this.boardScrollerHandle.style.cursor = 'grab';
     });
 
     draggable.on('dragStart', () => {
@@ -128,29 +134,43 @@ export default class BoardScroller {
       }
     });
 
-    // document.getElementById(this.boardScrollerId).style.opacity = '1';
-
-    this.workflowBoardWrapper.addEventListener('mouseover', () => {
-      document.getElementById(this.boardScrollerId).style.opacity = '1';
-    });
-
-    this.workflowBoardWrapper.addEventListener('mouseout', () => {
-      document.getElementById(this.boardScrollerId).style.opacity = '0';
-    });
+    document.getElementById(this.boardScrollerId).style.opacity = '1';
   }
 
-  setHandlePosition() {
-    this.boardScrollerHandle.style.top = (this.boardScroller.offsetHeight - this.boardScrollerHandle.offsetHeight - 14) * (this.workflowBoardWrapper.scrollTop / this.scrollableHeight) + 'px';
-    this.boardScrollerHandle.style.left = (this.boardScroller.offsetWidth - this.boardScrollerHandle.offsetWidth - 14) * (this.workflowBoardWrapper.scrollLeft / this.scrollableWidth) + 'px';
+  setHandlePosition(): void {
+    let top = (this.boardScrollerInner.offsetHeight - this.boardScrollerHandle.offsetHeight) * (this.workflowBoardWrapper.scrollTop / this.scrollableHeight);
+    let left = (this.boardScrollerInner.offsetWidth - this.boardScrollerHandle.offsetWidth) * (this.workflowBoardWrapper.scrollLeft / this.scrollableWidth);
+
+    if (top > 0) {
+      if (top + this.boardScrollerHandle.offsetHeight > this.boardScrollerInner.offsetHeight) {
+        top = this.boardScrollerInner.offsetHeight - this.boardScrollerHandle.offsetHeight;
+      }
+    } else {
+      top = 0;
+    }
+
+    if (left > 0) {
+      if (left + this.boardScrollerHandle.offsetWidth > this.boardScrollerInner.offsetWidth) {
+        left = this.boardScrollerInner.offsetWidth - this.boardScrollerHandle.offsetWidth;
+      }
+    } else {
+      left = 0;
+    }
+
+    this.boardScrollerHandle.style.top = top + 'px';
+    this.boardScrollerHandle.style.left = left + 'px';
   }
 
-  createBoardScroller() {
+  createBoardScroller(): HTMLElement {
     return createElement('div', {
       id: this.boardScrollerId,
       styles: {
         position: 'fixed',
         right: '20px',
         bottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
         width: '100px',
         height: '100px',
         zIndex: '1000',
@@ -165,15 +185,11 @@ export default class BoardScroller {
     });
   }
 
-  createBoardScrollerInner() {
+  createBoardScrollerInner(): HTMLElement {
     return createElement('div', {
       id: this.boardScrollerId + 'Inner',
       styles: {
-        position: 'absolute',
-        top: '3px',
-        right: '3px',
-        bottom: '3px',
-        left: '3px',
+        position: 'relative',
         zIndex: '1001',
         width: 'calc(100% - 10px)',
         height: 'calc(100% - 10px)',
@@ -184,7 +200,7 @@ export default class BoardScroller {
     });
   }
 
-  createBoardScrollerHandle() {
+  createBoardScrollerHandle(): HTMLElement {
     return createElement('div', {
       id: this.boardScrollerId + 'Handle',
       styles: {
@@ -200,7 +216,9 @@ export default class BoardScroller {
     });
   }
 
-  createBoardScrollerColumns() {
+  createBoardScrollerColumns(): void {
+    // Remove existing columns in case we're reloading
+    document.querySelectorAll('.boardScrollerColumn').forEach(element => element.remove());
     const columnHeaders = document.querySelectorAll('[class*="workflowColumnHeaders"] [class*="columnHeader-"]') as NodeListOf<HTMLElement>;
     const columns = document.querySelectorAll('[class*="workflowGroupItems"] [class*="workflowColumn-"]') as NodeListOf<HTMLElement>;
 
@@ -212,10 +230,15 @@ export default class BoardScroller {
 
       const cardContainer = column.querySelector('[class*="workflowCardContainer"]') as HTMLElement;
       const widthRatio = column.offsetWidth / this.workflowBoard.offsetWidth;
-      const heightRatio = cardContainer.offsetHeight / this.workflowBoard.offsetHeight;
-      const headerHeightRatio = columnHeader.offsetHeight / this.workflowBoard.offsetHeight;
+      const heightRatio =
+        cardContainer.offsetHeight /
+        (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
+      const headerHeightRatio =
+        columnHeader.offsetHeight /
+        (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
 
       const columnHeaderElement = createElement('div', {
+        className: 'boardScrollerColumn',
         styles: {
           position: 'absolute',
           top: '4px',
@@ -236,7 +259,7 @@ export default class BoardScroller {
           top: Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 5 + 'px',
           left: left + 'px',
           width: Math.ceil(this.boardScrollerWidth * widthRatio) - 2 + 'px',
-          height: Math.ceil(this.boardScrollerHeight * heightRatio) - 2 + 'px',
+          height: Math.ceil(this.boardScrollerHeight * heightRatio) - 2 - columnHeaderElement.offsetHeight + 'px',
           zIndex: '1002',
           boxSizing: 'border-box',
           backgroundColor: 'var(--WorkflowBoard--status-background-color)',
@@ -248,14 +271,15 @@ export default class BoardScroller {
     }
   }
 
+  // TODO: Better way to assert that the workflow board has loaded?
   workflowBoardLoaded(): Promise<boolean> {
     return new Promise(resolve => {
-      if (document.querySelector('[class*="workflowBoard-"]')) {
+      if (document.querySelector('[class*="workflowColumn--"]')) {
         return resolve(true);
       }
 
       const observer = new MutationObserver(() => {
-        if (document.querySelector('[class*="workflowBoard-"]')) {
+        if (document.querySelector('[class*="workflowColumn--"]')) {
           resolve(true);
           observer.disconnect();
         }

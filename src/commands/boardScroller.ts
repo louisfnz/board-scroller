@@ -8,6 +8,7 @@ const loadBoardScroller = () => {
   }
 };
 
+// TODO: This is hacky, need a nicer way to know what page we're on
 new MutationObserver(() => {
   const url = window.location.href;
   if (url !== currentUrl) {
