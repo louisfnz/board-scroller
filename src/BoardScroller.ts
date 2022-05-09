@@ -129,11 +129,7 @@ export default class BoardScroller {
   setScrollerDimensions(): void {
     const scrollerRatio = this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth;
 
-    if (this.workflowBoardWrapper.offsetHeight > this.workflowBoard.offsetHeight) {
-      this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetWidth));
-    } else {
-      this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth));
-    }
+    this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.getBoardHeight() / this.workflowBoard.offsetWidth));
 
     this.boardScroller.style.width = this.boardScrollerWidth + 10 + 'px';
     this.boardScroller.style.height = this.boardScrollerHeight + 10 + 'px';
@@ -288,6 +284,8 @@ export default class BoardScroller {
     const columnHeaders = document.querySelectorAll('[class*="workflowColumnHeaders--"] [class*="columnHeader--"]') as NodeListOf<HTMLElement>;
     const workflowGroups = document.querySelectorAll('[class*="workflowGroupItems--"]') as NodeListOf<HTMLElement>;
 
+    const boardHeight = this.getBoardHeight();
+
     let includeHeaders = true;
     let top = 0;
 
@@ -302,12 +300,8 @@ export default class BoardScroller {
 
         const cardContainer = column.querySelector('[class*="workflowCardContainer--"]') as HTMLElement;
         const widthRatio = column.offsetWidth / this.workflowBoard.offsetWidth;
-        const heightRatio =
-          cardContainer.offsetHeight /
-          (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
-        const headerHeightRatio =
-          columnHeader.offsetHeight /
-          (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
+        const heightRatio = cardContainer.offsetHeight / boardHeight;
+        const headerHeightRatio = columnHeader.offsetHeight / boardHeight;
 
         let extraHeight = 0;
 
@@ -348,14 +342,12 @@ export default class BoardScroller {
       }
 
       includeHeaders = false;
-      top =
-        top +
-        this.boardScrollerHeight *
-          (workflowGroup.offsetHeight /
-            (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight
-              ? this.workflowBoard.offsetHeight
-              : this.workflowBoardWrapper.offsetHeight));
+      top = top + this.boardScrollerHeight * (workflowGroup.offsetHeight / boardHeight);
     });
+  }
+
+  getBoardHeight() {
+    return this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight;
   }
 
   getColumnSizeString(): string {
