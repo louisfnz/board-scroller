@@ -197,7 +197,7 @@ export default class BoardScroller {
       this.isDragging = false;
     });
 
-    document.querySelector('.sidebar-layout__toggle-collapsed').addEventListener('click', this.boundSidebarListener);
+    document.querySelectorAll('.sidebar-layout__toggle-collapsed').forEach(element => element.addEventListener('click', this.boundSidebarListener));
 
     window.addEventListener('resize', this.boundResizeListener);
 
