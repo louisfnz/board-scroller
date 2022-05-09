@@ -46,11 +46,11 @@ export default class BoardScroller {
     this.boundPageChangeListener = this.pageChangeListener.bind(this);
   }
 
-  initialize() {
+  initialize(): void {
     document.addEventListener('page:change', this.boundPageChangeListener);
   }
 
-  pageChangeListener() {
+  pageChangeListener(): void {
     if (window.location.href.includes('workflow_boards')) {
       if (!this.mutationObserver) {
         this.mutationObserver = this.createObserver();
@@ -63,7 +63,7 @@ export default class BoardScroller {
     }
   }
 
-  removeBoardScroller() {
+  removeBoardScroller(): void {
     const existingScroller = document.getElementById(this.boardScrollerId);
     if (existingScroller) {
       existingScroller.remove();
