@@ -27,7 +27,7 @@ export default class BoardScroller {
   originalHandleTop: number;
 
   isDragging: boolean;
-  columnHash?: string;
+  columnSizes?: string;
 
   boundSidebarListener: (e: Event) => void;
   boundResizeListener: (e: Event) => void;
@@ -104,9 +104,9 @@ export default class BoardScroller {
           this.load();
           return;
         } else {
-          const columnHash = this.createColumnHash();
-          if (columnHash !== this.columnHash) {
-            this.columnHash = columnHash;
+          const columnSizes = this.getColumnSizeString();
+          if (columnSizes !== this.columnSizes) {
+            this.columnSizes = columnSizes;
             this.load();
             return;
           }
@@ -358,7 +358,7 @@ export default class BoardScroller {
     });
   }
 
-  createColumnHash(): string {
+  getColumnSizeString(): string {
     const columns = document.querySelectorAll('[class*="workflowGroupItems--"] [class*="workflowColumn--"]') as NodeListOf<HTMLElement>;
     const values = [];
 
