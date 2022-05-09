@@ -1,73 +1,132 @@
 import Draggabilly from 'draggabilly';
-
-const applyCSS = (element: HTMLElement, styles: Record<string, unknown>) => {
-  for (const property of Object.keys(styles)) {
-    element.style[property] = styles[property];
-  }
-};
-
-const createElement = (tagName: string, { id, className, styles }: { id?: string; className?: string; styles?: Record<string, unknown> }): HTMLElement => {
-  const element = document.createElement(tagName);
-  if (id) element.id = id;
-  if (className) element.className = className;
-  if (styles) applyCSS(element, styles);
-  return element;
-};
+import debounce from 'lodash.debounce';
+import { createElement } from './helpers';
 
 export default class BoardScroller {
-  boardSelector: string;
+  initialLoad: boolean;
+
+  mutationObserver?: MutationObserver;
+
   boardScrollerId: string;
   boardScrollerWidth: number;
   boardScrollerHeight: number;
+
   workflowBoardWrapper: HTMLElement;
   workflowBoard: HTMLElement;
   boardScroller: HTMLElement;
   boardScrollerInner: HTMLElement;
   boardScrollerHandle: HTMLElement;
+
   scrollableHeight: number;
   scrollableWidth: number;
+
   draggableHeight: number;
   draggableWidth: number;
+
   originalHandleLeft: number;
   originalHandleTop: number;
+
   isDragging: boolean;
+  columnHash?: string;
+
+  boundSidebarListener: (e: Event) => void;
+  boundResizeListener: (e: Event) => void;
+  boundWorkflowBoardListener: (e: Event) => void;
+  boundPageChangeListener: (e: Event) => void;
 
   constructor() {
-    this.boardSelector = '[class*="workflowBoard-"]';
     this.boardScrollerId = 'boardScroller';
     this.boardScrollerWidth = 160;
     this.isDragging = false;
+    this.initialLoad = false;
+
+    this.boundSidebarListener = this.sidebarListener.bind(this);
+    this.boundResizeListener = this.resizeListener.bind(this);
+    this.boundWorkflowBoardListener = this.workflowBoardListener.bind(this);
+    this.boundPageChangeListener = this.pageChangeListener.bind(this);
   }
 
-  async load(): Promise<void> {
-    await this.workflowBoardLoaded();
+  initialize() {
+    document.addEventListener('page:change', this.boundPageChangeListener);
+  }
 
-    // Tear down existing scroller
+  pageChangeListener() {
+    if (window.location.href.includes('workflow_boards')) {
+      if (!this.mutationObserver) {
+        this.mutationObserver = this.createObserver();
+      }
+      this.observeChanges();
+    } else {
+      if (this.mutationObserver) {
+        this.mutationObserver.disconnect();
+      }
+    }
+  }
+
+  removeBoardScroller() {
     const existingScroller = document.getElementById(this.boardScrollerId);
     if (existingScroller) {
       existingScroller.remove();
     }
+  }
 
-    this.workflowBoardWrapper = document.querySelector('[class*="workflowBoardWrapper"]') as HTMLElement;
-    this.workflowBoard = document.querySelector('[class*="workflowBoard-"]') as HTMLElement;
+  load(): void {
+    this.removeBoardScroller();
 
-    if (!this.workflowBoardWrapper || !this.workflowBoard) return;
+    try {
+      this.workflowBoardWrapper = document.querySelector('[class*="workflowBoardWrapper--"]') as HTMLElement;
+      this.workflowBoard = document.querySelector('[class*="workflowBoard--"]') as HTMLElement;
 
-    this.boardScroller = this.createBoardScroller();
-    this.boardScrollerInner = this.createBoardScrollerInner();
-    this.boardScrollerHandle = this.createBoardScrollerHandle();
-    this.boardScroller.appendChild(this.boardScrollerInner);
-    this.boardScrollerInner.appendChild(this.boardScrollerHandle);
-    this.workflowBoardWrapper.appendChild(this.boardScroller);
-    this.setScrollerDimensions();
-    this.createBoardScrollerColumns();
-    this.setHandlePosition();
-    this.createEvents();
+      if (!this.workflowBoardWrapper || !this.workflowBoard) return;
+
+      this.boardScroller = this.createBoardScroller();
+      this.boardScrollerInner = this.createBoardScrollerInner();
+      this.boardScrollerHandle = this.createBoardScrollerHandle();
+      this.boardScroller.appendChild(this.boardScrollerInner);
+      this.boardScrollerInner.appendChild(this.boardScrollerHandle);
+      this.workflowBoardWrapper.appendChild(this.boardScroller);
+      this.setScrollerDimensions();
+      this.createBoardScrollerColumns();
+      this.setHandlePosition();
+      this.createEvents();
+
+      this.initialLoad = true;
+    } catch (e) {
+      console.log('Error loading board scroller');
+      console.error(e);
+    }
+  }
+
+  createObserver(): MutationObserver {
+    const observer = debounce(() => {
+      if (window.location.href.includes('workflow_boards')) {
+        if (!this.initialLoad) {
+          this.load();
+          return;
+        } else {
+          const columnHash = this.createColumnHash();
+          if (columnHash !== this.columnHash) {
+            this.columnHash = columnHash;
+            this.load();
+            return;
+          }
+        }
+      } else {
+        this.initialLoad = false;
+      }
+    }, 200);
+
+    return new MutationObserver(observer);
+  }
+
+  observeChanges(): void {
+    this.mutationObserver.observe(document, {
+      childList: true,
+      subtree: true,
+    });
   }
 
   setScrollerDimensions(): void {
-    // TODO: Figure out dimensions glitches with boards of different sizes
-
     const scrollerRatio = this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth;
 
     if (this.workflowBoardWrapper.offsetHeight > this.workflowBoard.offsetHeight) {
@@ -96,6 +155,20 @@ export default class BoardScroller {
     this.draggableWidth = this.boardScrollerInner.offsetWidth - this.boardScrollerHandle.offsetWidth;
   }
 
+  sidebarListener(): void {
+    setTimeout(() => this.load(), 50);
+  }
+
+  resizeListener(): void {
+    this.setScrollerDimensions();
+  }
+
+  workflowBoardListener(): void {
+    if (!this.isDragging) {
+      this.setHandlePosition();
+    }
+  }
+
   createEvents(): void {
     const _this = this;
 
@@ -117,22 +190,18 @@ export default class BoardScroller {
     });
 
     draggable.on('dragStart', () => {
-      _this.isDragging = true;
+      this.isDragging = true;
     });
 
     draggable.on('dragEnd', () => {
-      _this.isDragging = false;
+      this.isDragging = false;
     });
 
-    window.addEventListener('resize', () => {
-      _this.setScrollerDimensions();
-    });
+    document.querySelector('.sidebar-layout__toggle-collapsed').addEventListener('click', this.boundSidebarListener);
 
-    this.workflowBoardWrapper.addEventListener('scroll', () => {
-      if (!_this.isDragging) {
-        _this.setHandlePosition();
-      }
-    });
+    window.addEventListener('resize', this.boundResizeListener);
+
+    this.workflowBoardWrapper.addEventListener('scroll', this.boundWorkflowBoardListener);
 
     document.getElementById(this.boardScrollerId).style.opacity = '1';
   }
@@ -173,14 +242,13 @@ export default class BoardScroller {
         justifyContent: 'center',
         width: '100px',
         height: '100px',
-        zIndex: '1000',
+        zIndex: '890',
         boxSizing: 'border-box',
         backgroundColor: 'var(--theme-container-page-background)',
         border: '1px solid var(--theme-primary-border)',
         boxShadow: '0px 2px 5px rgb(0 0 0 / 20%)',
         borderRadius: '4px',
         opacity: '0',
-        transition: 'opacity 200ms ease',
       },
     });
   }
@@ -217,78 +285,88 @@ export default class BoardScroller {
   }
 
   createBoardScrollerColumns(): void {
-    // Remove existing columns in case we're reloading
-    document.querySelectorAll('.boardScrollerColumn').forEach(element => element.remove());
-    const columnHeaders = document.querySelectorAll('[class*="workflowColumnHeaders"] [class*="columnHeader-"]') as NodeListOf<HTMLElement>;
-    const columns = document.querySelectorAll('[class*="workflowGroupItems"] [class*="workflowColumn-"]') as NodeListOf<HTMLElement>;
+    const columnHeaders = document.querySelectorAll('[class*="workflowColumnHeaders--"] [class*="columnHeader--"]') as NodeListOf<HTMLElement>;
+    const workflowGroups = document.querySelectorAll('[class*="workflowGroupItems--"]') as NodeListOf<HTMLElement>;
 
-    let left = 4;
+    let includeHeaders = true;
+    let top = 0;
 
-    for (let i = 0; i < columns.length; i++) {
-      const column = columns[i];
-      const columnHeader = columnHeaders[i];
+    workflowGroups.forEach(child => {
+      let left = 4;
+      const workflowGroup = child.parentElement;
+      const columns = workflowGroup.querySelectorAll('[class*="workflowColumn--"]') as NodeListOf<HTMLElement>;
 
-      const cardContainer = column.querySelector('[class*="workflowCardContainer"]') as HTMLElement;
-      const widthRatio = column.offsetWidth / this.workflowBoard.offsetWidth;
-      const heightRatio =
-        cardContainer.offsetHeight /
-        (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
-      const headerHeightRatio =
-        columnHeader.offsetHeight /
-        (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
+      for (let i = 0; i < columns.length; i++) {
+        const column = columns[i];
+        const columnHeader = columnHeaders[i];
 
-      const columnHeaderElement = createElement('div', {
-        className: 'boardScrollerColumn',
-        styles: {
-          position: 'absolute',
-          top: '4px',
-          left: left + 'px',
-          width: Math.ceil(this.boardScrollerWidth * widthRatio) - 2 + 'px',
-          height: Math.ceil(this.boardScrollerHeight * headerHeightRatio) - 1 + 'px',
-          zIndex: '1002',
-          boxSizing: 'border-box',
-          backgroundColor: columnHeader.style.backgroundColor,
-          borderRadius: '1px',
-        },
-      });
-      this.boardScrollerInner.appendChild(columnHeaderElement);
+        const cardContainer = column.querySelector('[class*="workflowCardContainer--"]') as HTMLElement;
+        const widthRatio = column.offsetWidth / this.workflowBoard.offsetWidth;
+        const heightRatio =
+          cardContainer.offsetHeight /
+          (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
+        const headerHeightRatio =
+          columnHeader.offsetHeight /
+          (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight ? this.workflowBoard.offsetHeight : this.workflowBoardWrapper.offsetHeight);
 
-      const columnElement = createElement('div', {
-        styles: {
-          position: 'absolute',
-          top: Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 5 + 'px',
-          left: left + 'px',
-          width: Math.ceil(this.boardScrollerWidth * widthRatio) - 2 + 'px',
-          height: Math.ceil(this.boardScrollerHeight * heightRatio) - 2 - columnHeaderElement.offsetHeight + 'px',
-          zIndex: '1002',
-          boxSizing: 'border-box',
-          backgroundColor: 'var(--WorkflowBoard--status-background-color)',
-          borderRadius: '1px',
-        },
-      });
-      this.boardScrollerInner.appendChild(columnElement);
-      left += Math.ceil(this.boardScrollerWidth * widthRatio);
-    }
-  }
+        let extraHeight = 0;
 
-  // TODO: Better way to assert that the workflow board has loaded?
-  workflowBoardLoaded(): Promise<boolean> {
-    return new Promise(resolve => {
-      if (document.querySelector('[class*="workflowColumn--"]')) {
-        return resolve(true);
+        if (includeHeaders) {
+          const columnHeaderElement = createElement('div', {
+            className: 'boardScrollerColumn',
+            styles: {
+              position: 'absolute',
+              top: '4px',
+              left: left + 'px',
+              width: Math.ceil(this.boardScrollerWidth * widthRatio) - 2 + 'px',
+              height: Math.ceil(this.boardScrollerHeight * headerHeightRatio) - 1 + 'px',
+              zIndex: '1002',
+              boxSizing: 'border-box',
+              backgroundColor: columnHeader.style.backgroundColor,
+              borderRadius: '1px',
+            },
+          });
+          this.boardScrollerInner.appendChild(columnHeaderElement);
+          extraHeight = columnHeaderElement.offsetHeight;
+        }
+
+        const columnElement = createElement('div', {
+          styles: {
+            position: 'absolute',
+            top: top + Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 5 + 'px',
+            left: left + 'px',
+            width: Math.ceil(this.boardScrollerWidth * widthRatio) - 2 + 'px',
+            height: Math.ceil(this.boardScrollerHeight * heightRatio) - 2 - extraHeight + 'px',
+            zIndex: '1002',
+            boxSizing: 'border-box',
+            backgroundColor: 'var(--WorkflowBoard--status-background-color)',
+            borderRadius: '1px',
+          },
+        });
+        this.boardScrollerInner.appendChild(columnElement);
+        left += Math.ceil(this.boardScrollerWidth * widthRatio);
       }
 
-      const observer = new MutationObserver(() => {
-        if (document.querySelector('[class*="workflowColumn--"]')) {
-          resolve(true);
-          observer.disconnect();
-        }
-      });
-
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-      });
+      includeHeaders = false;
+      top =
+        top +
+        this.boardScrollerHeight *
+          (workflowGroup.offsetHeight /
+            (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight
+              ? this.workflowBoard.offsetHeight
+              : this.workflowBoardWrapper.offsetHeight));
     });
+  }
+
+  createColumnHash(): string {
+    const columns = document.querySelectorAll('[class*="workflowGroupItems--"] [class*="workflowColumn--"]') as NodeListOf<HTMLElement>;
+    const values = [];
+
+    columns.forEach(column => {
+      const { offsetWidth, offsetHeight } = column;
+      values.push(`{${offsetWidth},${offsetHeight}}`);
+    });
+
+    return values.toString();
   }
 }
