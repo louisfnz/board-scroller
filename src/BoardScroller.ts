@@ -2,6 +2,12 @@ import Draggabilly from 'draggabilly';
 import debounce from 'lodash.debounce';
 import { createElement } from './helpers';
 
+const INITIAL_BOARD_SCROLLER_WIDTH = 160;
+const MAX_WORKFLOW_BOARD_HEIGHT = 300;
+const MAX_WORKFLOW_BOARD_WIDTH = 800;
+const MARGIN_WITH_SCROLLBARS = '25px';
+const MARGIN_WITHOUT_SCROLLBARS = '10px';
+
 export default class BoardScroller {
   initialLoad: boolean;
 
@@ -36,7 +42,7 @@ export default class BoardScroller {
 
   constructor() {
     this.boardScrollerId = 'boardScroller';
-    this.boardScrollerWidth = 160;
+    this.boardScrollerWidth = INITIAL_BOARD_SCROLLER_WIDTH;
     this.isDragging = false;
     this.initialLoad = false;
 
@@ -67,6 +73,14 @@ export default class BoardScroller {
     const existingScroller = document.getElementById(this.boardScrollerId);
     if (existingScroller) {
       existingScroller.remove();
+    }
+  }
+
+  removeBoardScrollerColumns(): void {
+    const existingScroller = document.getElementById(this.boardScrollerId);
+    if (existingScroller) {
+      const columnElements = existingScroller.querySelectorAll('[class^="boardScrollerColumn"]');
+      columnElements.forEach(e => e.parentNode.removeChild(e));
     }
   }
 
@@ -127,12 +141,37 @@ export default class BoardScroller {
   }
 
   setScrollerDimensions(): void {
+    if (this.workflowBoardWrapper.offsetWidth < MAX_WORKFLOW_BOARD_WIDTH || this.workflowBoardWrapper.offsetHeight < MAX_WORKFLOW_BOARD_HEIGHT) {
+      this.boardScroller.style.opacity = '0';
+    } else {
+      this.boardScroller.style.opacity = '1';
+    }
+
+    if (this.workflowBoard.offsetWidth > this.workflowBoardWrapper.offsetWidth) {
+      this.boardScroller.style.bottom = MARGIN_WITH_SCROLLBARS;
+    } else {
+      this.boardScroller.style.bottom = MARGIN_WITHOUT_SCROLLBARS;
+    }
+    if (this.workflowBoard.offsetHeight > this.workflowBoardWrapper.offsetHeight) {
+      this.boardScroller.style.right = MARGIN_WITH_SCROLLBARS;
+    } else {
+      this.boardScroller.style.right = MARGIN_WITHOUT_SCROLLBARS;
+    }
+
+    this.boardScrollerWidth = INITIAL_BOARD_SCROLLER_WIDTH;
+
     const scrollerRatio = this.workflowBoard.offsetHeight / this.workflowBoard.offsetWidth;
 
     this.boardScrollerHeight = Math.ceil((this.boardScrollerWidth - 10) * (this.getBoardHeight() / this.workflowBoard.offsetWidth));
 
+    if (this.boardScrollerHeight > this.workflowBoardWrapper.offsetHeight * 0.9) {
+      this.boardScrollerHeight = Math.ceil(this.workflowBoardWrapper.offsetHeight * 0.9);
+      this.boardScrollerWidth = this.workflowBoard.offsetWidth / (this.workflowBoard.offsetHeight / this.boardScrollerHeight) + 10;
+    }
+
     this.boardScroller.style.width = this.boardScrollerWidth + 10 + 'px';
     this.boardScroller.style.height = this.boardScrollerHeight + 10 + 'px';
+    this.boardScrollerHandle.style.maxWidth = this.boardScrollerInner.offsetWidth + 'px';
     this.boardScrollerHandle.style.width = this.boardScrollerWidth * (this.workflowBoardWrapper.offsetWidth / this.workflowBoard.offsetWidth) + 'px';
     this.boardScrollerHandle.style.height =
       Math.ceil((this.boardScrollerWidth - 10) * scrollerRatio) * (this.workflowBoardWrapper.offsetHeight / this.workflowBoard.offsetHeight) + 2 + 'px';
@@ -157,6 +196,8 @@ export default class BoardScroller {
 
   resizeListener(): void {
     this.setScrollerDimensions();
+    this.removeBoardScrollerColumns();
+    this.createBoardScrollerColumns();
   }
 
   workflowBoardListener(): void {
@@ -231,8 +272,8 @@ export default class BoardScroller {
       id: this.boardScrollerId,
       styles: {
         position: 'fixed',
-        right: '20px',
-        bottom: '20px',
+        right: '10px',
+        bottom: '10px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -307,7 +348,7 @@ export default class BoardScroller {
 
         if (includeHeaders) {
           const columnHeaderElement = createElement('div', {
-            className: 'boardScrollerColumn',
+            className: 'boardScrollerColumnHeader',
             styles: {
               position: 'absolute',
               top: '4px',
@@ -325,6 +366,7 @@ export default class BoardScroller {
         }
 
         const columnElement = createElement('div', {
+          className: 'boardScrollerColumn',
           styles: {
             position: 'absolute',
             top: top + Math.ceil(this.boardScrollerHeight * headerHeightRatio) + 5 + 'px',
