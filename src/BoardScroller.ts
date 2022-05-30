@@ -39,6 +39,7 @@ export default class BoardScroller {
   boundResizeListener: (e: Event) => void;
   boundWorkflowBoardListener: (e: Event) => void;
   boundPageChangeListener: (e: Event) => void;
+  boundSetPositionClickListener: (e: MouseEvent) => void;
 
   constructor() {
     this.boardScrollerId = 'boardScroller';
@@ -50,6 +51,7 @@ export default class BoardScroller {
     this.boundResizeListener = this.resizeListener.bind(this);
     this.boundWorkflowBoardListener = this.workflowBoardListener.bind(this);
     this.boundPageChangeListener = this.pageChangeListener.bind(this);
+    this.boundSetPositionClickListener = this.setPositionClickListener.bind(this);
   }
 
   initialize(): void {
@@ -206,6 +208,20 @@ export default class BoardScroller {
     }
   }
 
+  setPositionClickListener(e: MouseEvent): void {
+    const target = e.target as HTMLElement;
+    if (target.id === 'boardScrollerHandle') {
+      return;
+    }
+
+    const rect = this.boardScrollerInner.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    this.workflowBoardWrapper.scrollTop = (y - this.boardScrollerHandle.offsetHeight / 2) * (this.scrollableHeight / this.draggableHeight);
+    this.workflowBoardWrapper.scrollLeft = (x - this.boardScrollerHandle.offsetWidth / 2) * (this.scrollableWidth / this.draggableWidth);
+  }
+
   createEvents(): void {
     const _this = this;
 
@@ -240,7 +256,9 @@ export default class BoardScroller {
 
     this.workflowBoardWrapper.addEventListener('scroll', this.boundWorkflowBoardListener);
 
-    document.getElementById(this.boardScrollerId).style.opacity = '1';
+    this.boardScrollerInner.addEventListener('click', this.boundSetPositionClickListener);
+
+    this.boardScroller.style.opacity = '1';
   }
 
   setHandlePosition(): void {
@@ -301,6 +319,7 @@ export default class BoardScroller {
         backgroundColor: 'var(--theme-container-page-background)',
         boxSizing: 'border-box',
         borderRadius: '4px',
+        cursor: 'pointer',
       },
     });
   }
