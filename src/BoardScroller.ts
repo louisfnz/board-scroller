@@ -259,17 +259,16 @@ export default class BoardScroller {
 
     this.workflowBoardWrapper.addEventListener('scroll', this.boundWorkflowBoardListener);
 
-    this.boardScrollerInner.addEventListener('mousedown', this.boundSetPositionClickListener);
-    this.workflowBoardWrapper.addEventListener('mousemove', (e: MouseEvent) => {
+    this.boardScroller.addEventListener('mousemove', (e: MouseEvent) => {
       if (this.mouseScrolling) {
         this.boundSetPositionClickListener(e);
       }
     });
-    this.workflowBoardWrapper.addEventListener('mousedown', (e: MouseEvent) => {
+    this.boardScroller.addEventListener('mousedown', (e: MouseEvent) => {
       this.mouseScrolling = true;
       this.boundSetPositionClickListener(e);
     });
-    this.workflowBoardWrapper.addEventListener('mouseup', (e: MouseEvent) => {
+    this.boardScroller.addEventListener('mouseup', (e: MouseEvent) => {
       this.mouseScrolling = false;
     });
 
