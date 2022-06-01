@@ -212,11 +212,6 @@ export default class BoardScroller {
   }
 
   setPositionClickListener(e: MouseEvent): void {
-    const target = e.target as HTMLElement;
-    if (target.id === 'boardScrollerHandle') {
-      return;
-    }
-
     const rect = this.boardScrollerInner.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
