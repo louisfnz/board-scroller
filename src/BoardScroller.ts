@@ -35,6 +35,8 @@ export default class BoardScroller {
   isDragging: boolean;
   columnSizes?: string;
 
+  mouseScrolling: boolean;
+
   boundSidebarListener: (e: Event) => void;
   boundResizeListener: (e: Event) => void;
   boundWorkflowBoardListener: (e: Event) => void;
@@ -46,6 +48,7 @@ export default class BoardScroller {
     this.boardScrollerWidth = INITIAL_BOARD_SCROLLER_WIDTH;
     this.isDragging = false;
     this.initialLoad = false;
+    this.mouseScrolling = false;
 
     this.boundSidebarListener = this.sidebarListener.bind(this);
     this.boundResizeListener = this.resizeListener.bind(this);
@@ -256,7 +259,18 @@ export default class BoardScroller {
 
     this.workflowBoardWrapper.addEventListener('scroll', this.boundWorkflowBoardListener);
 
-    this.boardScrollerInner.addEventListener('click', this.boundSetPositionClickListener);
+    this.boardScroller.addEventListener('mousemove', (e: MouseEvent) => {
+      if (this.mouseScrolling) {
+        this.boundSetPositionClickListener(e);
+      }
+    });
+    this.boardScroller.addEventListener('mousedown', (e: MouseEvent) => {
+      this.mouseScrolling = true;
+      this.boundSetPositionClickListener(e);
+    });
+    this.boardScroller.addEventListener('mouseup', (e: MouseEvent) => {
+      this.mouseScrolling = false;
+    });
 
     this.boardScroller.style.opacity = '1';
   }
