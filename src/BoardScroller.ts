@@ -63,6 +63,7 @@ export default class BoardScroller {
   }
 
   initialize(): void {
+    this.pageChangeListener();
     document.addEventListener('page:change', this.boundPageChangeListener);
   }
 
